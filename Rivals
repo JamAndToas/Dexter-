@@ -1,0 +1,1804 @@
+-- PhantomRival Hub (v2.0) by JacksSCRIPTS™
+-- Enhanced by Claude AI - April 2025
+-- PaperX Exclusive 🔥
+
+-- Services
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+local Lighting = game:GetService("Lighting")
+local CoreGui = game:GetService("CoreGui")
+local VirtualUser = game:GetService("VirtualUser")
+local HttpService = game:GetService("HttpService")
+local StarterGui = game:GetService("StarterGui")
+local ContextActionService = game:GetService("ContextActionService")
+
+-- Constants
+local WINDOW_SIZE = UDim2.new(0, 500, 0, 350)
+local ENABLE_COLOR = Color3.fromRGB(80, 200, 120)
+local DISABLE_COLOR = Color3.fromRGB(200, 80, 80)
+local BACKGROUND_COLOR = Color3.fromRGB(25, 25, 35)
+local ACCENT_COLOR = Color3.fromRGB(35, 35, 45)
+local TEXT_COLOR = Color3.fromRGB(255, 255, 255)
+local ACCENT_TEXT_COLOR = Color3.fromRGB(180, 180, 180)
+local HIGHLIGHT_COLOR = Color3.fromRGB(100, 100, 255)
+local KILL_AURA_RANGE = 10
+local HITBOX_SIZE = 8
+local DEFAULT_WALKSPEED = 16
+local BOOSTED_WALKSPEED = 32
+local DEFAULT_JUMPPOWER = 50
+local BOOSTED_JUMPPOWER = 100
+local DEFAULT_FOV = 70
+local MAX_FOV = 120
+
+-- Configuration
+local Config = {
+    Version = "2.0",
+    Author = "JacksSCRIPTS™",
+    SaveEnabled = true,
+    SaveFileName = "PhantomRivalSettings.json",
+    KeyBinds = {
+        ToggleUI = Enum.KeyCode.RightControl,
+        Fly = Enum.KeyCode.X,
+        Speed = Enum.KeyCode.Z,
+        Noclip = Enum.KeyCode.V
+    },
+}
+
+-- Feature States with enhanced options
+local Features = {
+    -- Combat Features
+    Combat = {
+        KillAura = {Enabled = false, Range = 10, TargetPlayers = true, TargetNPCs = true, Visualize = true},
+        HitboxExpander = {Enabled = false, Size = 8, TargetPlayers = true, TargetNPCs = false},
+        SilentAim = {Enabled = false, FOV = 180, VisibleCheck = true, HeadshotChance = 75},
+        AutoParry = {Enabled = false, Distance = 15, Prediction = 0.15, OnlyVisible = true},
+        RapidPunch = {Enabled = false, Cooldown = 0.1, PowerMultiplier = 1},
+        NoRecoil = {Enabled = false, ResetPattern = true, SuppressAnimation = true},
+        Wallbang = {Enabled = false, Range = 10, IgnoreMaterials = {"ForceField", "Water"}},
+        CustomCrosshair = {Enabled = false, Size = 10, Color = Color3.fromRGB(255, 0, 0), Thickness = 2},
+    },
+    
+    -- Visual Features
+    Visuals = {
+        ESP = {Enabled = false, BoxColor = Color3.fromRGB(255, 0, 0), Boxes = true, Tracers = true, Distance = true},
+        NameTags = {Enabled = false, ShowDistance = true, ShowHealth = true, TeamColor = true},
+        HealthBars = {Enabled = false, BarColor = Color3.fromRGB(0, 255, 0), LowHealthColor = Color3.fromRGB(255, 0, 0)},
+        Fullbright = {Enabled = false, Brightness = 2, Ambient = Color3.fromRGB(255, 255, 255)},
+        RemoveFog = {Enabled = false},
+        RainbowSkin = {Enabled = false, Speed = 5, Saturation = 1, Brightness = 1},
+        FOVChanger = {Enabled = false, FOV = 90},
+        ThirdPerson360 = {Enabled = false, Distance = 10},
+        Chams = {Enabled = false, AllyColor = Color3.fromRGB(0, 255, 0), EnemyColor = Color3.fromRGB(255, 0, 0), Transparency = 0.5},
+    },
+    
+    -- Movement Features
+    Movement = {
+        SpeedHack = {Enabled = false, Speed = 32, KeybindOnly = false},
+        FlyMode = {Enabled = false, Speed = 50, NoClip = true},
+        Noclip = {Enabled = false, AutoToggle = false},
+        AutoSprint = {Enabled = false, AlwaysOn = true, ConserveStamina = false},
+        InfiniteJump = {Enabled = false, Height = 50},
+        BunnyHop = {Enabled = false, AutoJump = true, Speed = 1.2},
+        TeleportBypass = {Enabled = false, MaxDistance = 100, Cooldown = 1},
+    },
+    
+    -- Utility Features
+    Utility = {
+        InfiniteStamina = {Enabled = false, RegenRate = 10},
+        PlayerTP = {Enabled = false, InstantTP = false, BypassChecks = false},
+        UnlockCamera = {Enabled = false, MaxDistance = 1000},
+        AntiAFK = {Enabled = false, Interval = 120},
+        ChatSpy = {Enabled = false, LogToConsole = true, IncludeWhispers = true},
+        FakeLag = {Enabled = false, Amount = 0.2, Visualize = true},
+        AutoFarm = {Enabled = false, Target = "None", CollectItems = true},
+        Freecam = {Enabled = false, Speed = 5},
+    }
+}
+
+-- Variables
+local OriginalProperties = {}
+local Connections = {}
+local ESP = {}
+local UIElements = {}
+local ActiveHitboxes = {}
+local TargetPlayers = {}
+local Hooks = {}
+local Toggles = {}
+local CurrentTab = "Combat"
+local IsDragging = false
+local DragStart = nil
+local StartPos = nil
+local SavedPos = nil
+
+-- Initialize GUI
+local function CreatePhantomRivalGUI()
+    -- Make sure we don't create duplicate GUIs
+    if CoreGui:FindFirstChild("PhantomRivalHub") then
+        CoreGui.PhantomRivalHub:Destroy()
+    end
+    
+    -- Main GUI Frame
+    local PhantomRivalWindow = Instance.new("ScreenGui")
+    PhantomRivalWindow.Name = "PhantomRivalHub"
+    PhantomRivalWindow.Parent = CoreGui
+    PhantomRivalWindow.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    PhantomRivalWindow.ResetOnSpawn = false
+    
+    -- Main container
+    local MainFrame = Instance.new("Frame")
+    MainFrame.Name = "MainFrame"
+    MainFrame.Parent = PhantomRivalWindow
+    MainFrame.BackgroundColor3 = BACKGROUND_COLOR
+    MainFrame.BorderSizePixel = 0
+    MainFrame.Position = UDim2.new(0.5, -WINDOW_SIZE.X.Offset/2, 0.5, -WINDOW_SIZE.Y.Offset/2)
+    MainFrame.Size = WINDOW_SIZE
+    MainFrame.ClipsDescendants = true
+    MainFrame.Active = true
+    MainFrame.Draggable = false -- We'll implement custom dragging
+    
+    -- Add rounded corners
+    local UICorner = Instance.new("UICorner")
+    UICorner.CornerRadius = UDim.new(0, 8)
+    UICorner.Parent = MainFrame
+    
+    -- Title Bar
+    local TitleBar = Instance.new("Frame")
+    TitleBar.Name = "TitleBar"
+    TitleBar.Parent = MainFrame
+    TitleBar.BackgroundColor3 = ACCENT_COLOR
+    TitleBar.BorderSizePixel = 0
+    TitleBar.Size = UDim2.new(1, 0, 0, 30)
+    
+    local TitleCorner = Instance.new("UICorner")
+    TitleCorner.CornerRadius = UDim.new(0, 8)
+    TitleCorner.Parent = TitleBar
+    
+    local TitleBottomFrame = Instance.new("Frame")
+    TitleBottomFrame.Name = "TitleBottomFrame"
+    TitleBottomFrame.Parent = TitleBar
+    TitleBottomFrame.BackgroundColor3 = ACCENT_COLOR
+    TitleBottomFrame.BorderSizePixel = 0
+    TitleBottomFrame.Position = UDim2.new(0, 0, 0.5, 0)
+    TitleBottomFrame.Size = UDim2.new(1, 0, 0.5, 0)
+    
+    local Title = Instance.new("TextLabel")
+    Title.Name = "Title"
+    Title.Parent = TitleBar
+    Title.BackgroundTransparency = 1
+    Title.Position = UDim2.new(0, 10, 0, 0)
+    Title.Size = UDim2.new(0.7, 0, 1, 0)
+    Title.Font = Enum.Font.GothamBold
+    Title.Text = "PhantomRival Hub v"..Config.Version
+    Title.TextColor3 = TEXT_COLOR
+    Title.TextSize = 16
+    Title.TextXAlignment = Enum.TextXAlignment.Left
+    
+    local CloseButton = Instance.new("TextButton")
+    CloseButton.Name = "CloseButton"
+    CloseButton.Parent = TitleBar
+    CloseButton.BackgroundTransparency = 1
+    CloseButton.Position = UDim2.new(1, -30, 0, 0)
+    CloseButton.Size = UDim2.new(0, 30, 1, 0)
+    CloseButton.Font = Enum.Font.GothamBold
+    CloseButton.Text = "X"
+    CloseButton.TextColor3 = TEXT_COLOR
+    CloseButton.TextSize = 18
+    
+    local MinimizeButton = Instance.new("TextButton")
+    MinimizeButton.Name = "MinimizeButton"
+    MinimizeButton.Parent = TitleBar
+    MinimizeButton.BackgroundTransparency = 1
+    MinimizeButton.Position = UDim2.new(1, -60, 0, 0)
+    MinimizeButton.Size = UDim2.new(0, 30, 1, 0)
+    MinimizeButton.Font = Enum.Font.GothamBold
+    MinimizeButton.Text = "-"
+    MinimizeButton.TextColor3 = TEXT_COLOR
+    MinimizeButton.TextSize = 18
+    
+    -- Tab Bar
+    local TabBar = Instance.new("Frame")
+    TabBar.Name = "TabBar"
+    TabBar.Parent = MainFrame
+    TabBar.BackgroundColor3 = ACCENT_COLOR
+    TabBar.BorderSizePixel = 0
+    TabBar.Position = UDim2.new(0, 0, 0, 30)
+    TabBar.Size = UDim2.new(1, 0, 0, 30)
+    
+    -- Tab Buttons
+    local TabButtons = {}
+    local TabContents = {}
+    local TabOrder = {"Combat", "Visuals", "Movement", "Utility"}
+    
+    for i, tabName in ipairs(TabOrder) do
+        local TabButton = Instance.new("TextButton")
+        TabButton.Name = tabName.."Tab"
+        TabButton.Parent = TabBar
+        TabButton.BackgroundTransparency = 1
+        TabButton.Position = UDim2.new((i-1) * 0.25, 0, 0, 0)
+        TabButton.Size = UDim2.new(0.25, 0, 1, 0)
+        TabButton.Font = Enum.Font.GothamSemibold
+        TabButton.Text = tabName
+        TabButton.TextColor3 = tabName == CurrentTab and HIGHLIGHT_COLOR or TEXT_COLOR
+        TabButton.TextSize = 14
+        
+        -- Tab Content Frame
+        local ContentFrame = Instance.new("ScrollingFrame")
+        ContentFrame.Name = tabName.."Content"
+        ContentFrame.Parent = MainFrame
+        ContentFrame.BackgroundTransparency = 1
+        ContentFrame.Position = UDim2.new(0, 10, 0, 70)
+        ContentFrame.Size = UDim2.new(1, -20, 1, -80)
+        ContentFrame.ScrollBarThickness = 4
+        ContentFrame.ScrollingDirection = Enum.ScrollingDirection.Y
+        ContentFrame.VerticalScrollBarPosition = Enum.VerticalScrollBarPosition.Right
+        ContentFrame.Visible = tabName == CurrentTab
+        ContentFrame.CanvasSize = UDim2.new(0, 0, 0, 0) -- Will be adjusted based on content
+        
+        TabButtons[tabName] = TabButton
+        TabContents[tabName] = ContentFrame
+        
+        -- Tab Button Functionality
+        TabButton.MouseButton1Click:Connect(function()
+            for name, button in pairs(TabButtons) do
+                button.TextColor3 = name == tabName and HIGHLIGHT_COLOR or TEXT_COLOR
+            end
+            
+            for name, content in pairs(TabContents) do
+                content.Visible = name == tabName
+            end
+            
+            CurrentTab = tabName
+        end)
+    end
+    
+    -- Populate tabs with features
+    local function CreateToggle(parent, featureCategory, featureName, yPos)
+        local ToggleFrame = Instance.new("Frame")
+        ToggleFrame.Name = featureName.."Toggle"
+        ToggleFrame.Parent = parent
+        ToggleFrame.BackgroundColor3 = ACCENT_COLOR
+        ToggleFrame.BorderSizePixel = 0
+        ToggleFrame.Position = UDim2.new(0, 0, 0, yPos)
+        ToggleFrame.Size = UDim2.new(1, 0, 0, 30)
+        
+        local ToggleCorner = Instance.new("UICorner")
+        ToggleCorner.CornerRadius = UDim.new(0, 6)
+        ToggleCorner.Parent = ToggleFrame
+        
+        local ToggleLabel = Instance.new("TextLabel")
+        ToggleLabel.Name = "Label"
+        ToggleLabel.Parent = ToggleFrame
+        ToggleLabel.BackgroundTransparency = 1
+        ToggleLabel.Position = UDim2.new(0, 10, 0, 0)
+        ToggleLabel.Size = UDim2.new(0.7, 0, 1, 0)
+        ToggleLabel.Font = Enum.Font.Gotham
+        ToggleLabel.Text = featureName
+        ToggleLabel.TextColor3 = TEXT_COLOR
+        ToggleLabel.TextSize = 14
+        ToggleLabel.TextXAlignment = Enum.TextXAlignment.Left
+        
+        local ToggleButton = Instance.new("Frame")
+        ToggleButton.Name = "Button"
+        ToggleButton.Parent = ToggleFrame
+        ToggleButton.BackgroundColor3 = Features[featureCategory][featureName].Enabled and ENABLE_COLOR or DISABLE_COLOR
+        ToggleButton.Position = UDim2.new(1, -50, 0.5, -10)
+        ToggleButton.Size = UDim2.new(0, 40, 0, 20)
+        
+        local ToggleButtonCorner = Instance.new("UICorner")
+        ToggleButtonCorner.CornerRadius = UDim.new(1, 0)
+        ToggleButtonCorner.Parent = ToggleButton
+        
+        local ToggleCircle = Instance.new("Frame")
+        ToggleCircle.Name = "Circle"
+        ToggleCircle.Parent = ToggleButton
+        ToggleCircle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        ToggleCircle.Position = Features[featureCategory][featureName].Enabled 
+            and UDim2.new(1, -20, 0.5, -8) 
+            or UDim2.new(0, 2, 0.5, -8)
+        ToggleCircle.Size = UDim2.new(0, 16, 0, 16)
+        
+        local ToggleCircleCorner = Instance.new("UICorner")
+        ToggleCircleCorner.CornerRadius = UDim.new(1, 0)
+        ToggleCircleCorner.Parent = ToggleCircle
+        
+        -- Settings button for advanced features
+        local SettingsButton = Instance.new("TextButton")
+        SettingsButton.Name = "SettingsButton"
+        SettingsButton.Parent = ToggleFrame
+        SettingsButton.BackgroundTransparency = 1
+        SettingsButton.Position = UDim2.new(1, -80, 0, 0)
+        SettingsButton.Size = UDim2.new(0, 30, 1, 0)
+        SettingsButton.Font = Enum.Font.GothamBold
+        SettingsButton.Text = "⚙️"
+        SettingsButton.TextColor3 = TEXT_COLOR
+        SettingsButton.TextSize = 14
+        
+        -- Click functionality
+        ToggleFrame.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                -- Don't toggle if clicked on settings button
+                local absolutePosition = input.Position
+                local settingsPosition = SettingsButton.AbsolutePosition
+                local settingsSize = SettingsButton.AbsoluteSize
+                if absolutePosition.X >= settingsPosition.X and absolutePosition.X <= settingsPosition.X + settingsSize.X and
+                   absolutePosition.Y >= settingsPosition.Y and absolutePosition.Y <= settingsPosition.Y + settingsSize.Y then
+                    return
+                end
+                
+                Features[featureCategory][featureName].Enabled = not Features[featureCategory][featureName].Enabled
+                ToggleButton.BackgroundColor3 = Features[featureCategory][featureName].Enabled and ENABLE_COLOR or DISABLE_COLOR
+                
+                -- Animate toggle circle
+                local targetPosition = Features[featureCategory][featureName].Enabled 
+                    and UDim2.new(1, -20, 0.5, -8) 
+                    or UDim2.new(0, 2, 0.5, -8)
+                
+                TweenService:Create(ToggleCircle, TweenInfo.new(0.2), {Position = targetPosition}):Play()
+                
+                -- Apply feature
+                ApplyFeature(featureCategory, featureName)
+                
+                -- Save settings
+                SaveSettings()
+            end
+        end)
+        
+        -- Settings button functionality
+        SettingsButton.MouseButton1Click:Connect(function()
+            OpenSettingsForFeature(featureCategory, featureName)
+        end)
+        
+        -- Store in toggles
+        Toggles[featureCategory..featureName] = {
+            Frame = ToggleFrame,
+            Button = ToggleButton,
+            Circle = ToggleCircle
+        }
+        
+        return ToggleFrame
+    end
+    
+    -- Populate tabs
+    for tabName, contentFrame in pairs(TabContents) do
+        local yOffset = 0
+        
+        for featureName, featureData in pairs(Features[tabName]) do
+            local toggle = CreateToggle(contentFrame, tabName, featureName, yOffset)
+            yOffset = yOffset + 40 -- Space between toggles
+        end
+        
+        -- Update canvas size
+        contentFrame.CanvasSize = UDim2.new(0, 0, 0, yOffset)
+    end
+    
+    -- Make the window draggable
+    TitleBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            IsDragging = true
+            DragStart = input.Position
+            StartPos = MainFrame.Position
+            
+            local connection
+            connection = input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    IsDragging = false
+                    connection:Disconnect()
+                    SavedPos = MainFrame.Position
+                end
+            end)
+        end
+    end)
+    
+    UserInputService.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement and IsDragging then
+            local delta = input.Position - DragStart
+            MainFrame.Position = UDim2.new(
+                StartPos.X.Scale, 
+                StartPos.X.Offset + delta.X,
+                StartPos.Y.Scale,
+                StartPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+    
+    -- Close & Minimize button functionality
+    CloseButton.MouseButton1Click:Connect(function()
+        PhantomRivalWindow.Enabled = false
+    end)
+    
+    MinimizeButton.MouseButton1Click:Connect(function()
+        MainFrame.Size = MainFrame.Size == WINDOW_SIZE 
+            and UDim2.new(WINDOW_SIZE.X.Scale, WINDOW_SIZE.X.Offset, 0, 30) 
+            or WINDOW_SIZE
+    end)
+    
+    UIElements.MainGUI = PhantomRivalWindow
+    UIElements.MainFrame = MainFrame
+    
+    return PhantomRivalWindow
+end
+
+-- Settings UI
+local function OpenSettingsForFeature(category, featureName)
+    -- Close any existing settings windows
+    if UIElements.SettingsFrame then
+        UIElements.SettingsFrame:Destroy()
+    end
+    
+    local featureData = Features[category][featureName]
+    
+    -- Create settings frame
+    local SettingsFrame = Instance.new("Frame")
+    SettingsFrame.Name = "SettingsFrame"
+    SettingsFrame.Parent = UIElements.MainGUI
+    SettingsFrame.BackgroundColor3 = BACKGROUND_COLOR
+    SettingsFrame.BorderSizePixel = 0
+    SettingsFrame.Position = UDim2.new(0.5, 50, 0.5, 0) -- Positioned next to main window
+    SettingsFrame.Size = UDim2.new(0, 300, 0, 350)
+    SettingsFrame.ClipsDescendants = true
+    
+    local SettingsCorner = Instance.new("UICorner")
+    SettingsCorner.CornerRadius = UDim.new(0, 8)
+    SettingsCorner.Parent = SettingsFrame
+    
+    -- Title
+    local SettingsTitle = Instance.new("TextLabel")
+    SettingsTitle.Name = "Title"
+    SettingsTitle.Parent = SettingsFrame
+    SettingsTitle.BackgroundColor3 = ACCENT_COLOR
+    SettingsTitle.BorderSizePixel = 0
+    SettingsTitle.Size = UDim2.new(1, 0, 0, 30)
+    SettingsTitle.Font = Enum.Font.GothamBold
+    SettingsTitle.Text = featureName.." Settings"
+    SettingsTitle.TextColor3 = TEXT_COLOR
+    SettingsTitle.TextSize = 16
+    
+    local SettingsTitleCorner = Instance.new("UICorner")
+    SettingsTitleCorner.CornerRadius = UDim.new(0, 8)
+    SettingsTitleCorner.Parent = SettingsTitle
+    
+    local CloseSettingsButton = Instance.new("TextButton")
+    CloseSettingsButton.Name = "CloseButton"
+    CloseSettingsButton.Parent = SettingsTitle
+    CloseSettingsButton.BackgroundTransparency = 1
+    CloseSettingsButton.Position = UDim2.new(1, -30, 0, 0)
+    CloseSettingsButton.Size = UDim2.new(0, 30, 1, 0)
+    CloseSettingsButton.Font = Enum.Font.GothamBold
+    CloseSettingsButton.Text = "X"
+    CloseSettingsButton.TextColor3 = TEXT_COLOR
+    CloseSettingsButton.TextSize = 18
+    
+    -- Content
+    local SettingsContent = Instance.new("ScrollingFrame")
+    SettingsContent.Name = "Content"
+    SettingsContent.Parent = SettingsFrame
+    SettingsContent.BackgroundTransparency = 1
+    SettingsContent.Position = UDim2.new(0, 10, 0, 40)
+    SettingsContent.Size = UDim2.new(1, -20, 1, -50)
+    SettingsContent.ScrollBarThickness = 4
+    SettingsContent.ScrollingDirection = Enum.ScrollingDirection.Y
+    SettingsContent.VerticalScrollBarPosition = Enum.VerticalScrollBarPosition.Right
+    
+    -- Create settings controls based on feature options
+    local yOffset = 0
+    
+    for optionName, optionValue in pairs(featureData) do
+        if optionName ~= "Enabled" then -- Skip the Enabled property
+            local optionType = type(optionValue)
+            
+            -- Option label
+            local OptionLabel = Instance.new("TextLabel")
+            OptionLabel.Name = optionName.."Label"
+            OptionLabel.Parent = SettingsContent
+            OptionLabel.BackgroundTransparency = 1
+            OptionLabel.Position = UDim2.new(0, 0, 0, yOffset)
+            OptionLabel.Size = UDim2.new(1, 0, 0, 20)
+            OptionLabel.Font = Enum.Font.Gotham
+            OptionLabel.Text = optionName.." :"
+            OptionLabel.TextColor3 = TEXT_COLOR
+            OptionLabel.TextSize = 14
+            OptionLabel.TextXAlignment = Enum.TextXAlignment.Left
+            
+            yOffset = yOffset + 25
+            
+            -- Create appropriate control based on option type
+            if optionType == "number" then
+                -- Slider for number values
+                local SliderFrame = Instance.new("Frame")
+                SliderFrame.Name = optionName.."Slider"
+                SliderFrame.Parent = SettingsContent
+                SliderFrame.BackgroundColor3 = ACCENT_COLOR
+                SliderFrame.BorderSizePixel = 0
+                SliderFrame.Position = UDim2.new(0, 0, 0, yOffset)
+                SliderFrame.Size = UDim2.new(0.7, 0, 0, 8)
+                
+                local SliderCorner = Instance.new("UICorner")
+                SliderCorner.CornerRadius = UDim.new(1, 0)
+                SliderCorner.Parent = SliderFrame
+                
+                local SliderFill = Instance.new("Frame")
+                SliderFill.Name = "Fill"
+                SliderFill.Parent = SliderFrame
+                SliderFill.BackgroundColor3 = HIGHLIGHT_COLOR
+                SliderFill.BorderSizePixel = 0
+                SliderFill.Size = UDim2.new(0.5, 0, 1, 0) -- Will be set based on value
+                
+                local SliderFillCorner = Instance.new("UICorner")
+                SliderFillCorner.CornerRadius = UDim.new(1, 0)
+                SliderFillCorner.Parent = SliderFill
+                
+                local SliderKnob = Instance.new("Frame")
+                SliderKnob.Name = "Knob"
+                SliderKnob.Parent = SliderFrame
+                SliderKnob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+                SliderKnob.Position = UDim2.new(0.5, -6, 0.5, -6)
+                SliderKnob.Size = UDim2.new(0, 12, 0, 12)
+                
+                local SliderKnobCorner = Instance.new("UICorner")
+                SliderKnobCorner.CornerRadius = UDim.new(1, 0)
+                SliderKnobCorner.Parent = SliderKnob
+                
+                local ValueLabel = Instance.new("TextLabel")
+                ValueLabel.Name = "Value"
+                ValueLabel.Parent = SettingsContent
+                ValueLabel.BackgroundTransparency = 1
+                ValueLabel.Position = UDim2.new(0.75, 0, 0, yOffset - 8)
+                ValueLabel.Size = UDim2.new(0.25, 0, 0, 20)
+                ValueLabel.Font = Enum.Font.GothamSemibold
+                ValueLabel.Text = tostring(optionValue)
+                ValueLabel.TextColor3 = TEXT_COLOR
+                ValueLabel.TextSize = 14
+                
+                -- Range configuration based on option name
+                local minValue, maxValue, step = 0, 100, 1
+                
+                if optionName:lower():find("range") or optionName:lower():find("distance") then
+                    maxValue = 50
+                elseif optionName:lower():find("speed") then
+                    maxValue = 100
+                    step = 5
+                elseif optionName:lower():find("size") then
+                    maxValue = 20
+                elseif optionName:lower():find("fov") then
+                    minValue = 30
+                    maxValue = 120
+                    step = 5
+                elseif optionName:lower():find("transparency") then
+                    maxValue = 1
+                    step = 0.1
+                end
+                
+                -- Set initial position
+                local normalizedValue = (optionValue - minValue) / (maxValue - minValue)
+                SliderFill.Size = UDim2.new(normalizedValue, 0, 1, 0)
+                SliderKnob.Position = UDim2.new(normalizedValue, -6, 0.5, -6)
+                
+                -- Slider functionality
+                local isDraggingSlider = false
+                
+                SliderFrame.InputBegan:Connect(function(input)
+                    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                        isDraggingSlider = true
+                        
+                        -- Update slider position
+                        local absPos = SliderFrame.AbsolutePosition
+                        local absSize = SliderFrame.AbsoluteSize
+                        local relativePos = (input.Position.X - absPos.X) / absSize.X
+                        relativePos = math.clamp(relativePos, 0, 1)
+                        
+                        -- Update slider visuals
+                        SliderFill.Size = UDim2.new(relativePos, 0, 1, 0)
+                        SliderKnob.Position = UDim2.new(relativePos, -6, 0.5, -6)
+                        
+-- Calculate and set the actual value
+                        local newValue = minValue + (relativePos * (maxValue - minValue))
+                        -- Round to step precision
+                        newValue = math.floor(newValue / step + 0.5) * step
+                        -- Update the value in features table
+                        Features[category][featureName][optionName] = newValue
+                        -- Update value label
+                        ValueLabel.Text = string.format("%.1f", newValue):gsub("%.0$", "")
+                        
+                        -- Apply changes immediately
+                        ApplyFeature(category, featureName)
+                        
+                        -- Save settings
+                        SaveSettings()
+                    end
+                end)
+                
+                UserInputService.InputChanged:Connect(function(input)
+                    if input.UserInputType == Enum.UserInputType.MouseMovement and isDraggingSlider then
+                        -- Update slider position
+                        local absPos = SliderFrame.AbsolutePosition
+                        local absSize = SliderFrame.AbsoluteSize
+                        local relativePos = (input.Position.X - absPos.X) / absSize.X
+                        relativePos = math.clamp(relativePos, 0, 1)
+                        
+                        -- Update slider visuals
+                        SliderFill.Size = UDim2.new(relativePos, 0, 1, 0)
+                        SliderKnob.Position = UDim2.new(relativePos, -6, 0.5, -6)
+                        
+                        -- Calculate and set the actual value
+                        local newValue = minValue + (relativePos * (maxValue - minValue))
+                        -- Round to step precision
+                        newValue = math.floor(newValue / step + 0.5) * step
+                        -- Update the value
+                        Features[category][featureName][optionName] = newValue
+                        -- Update value label
+                        ValueLabel.Text = string.format("%.1f", newValue):gsub("%.0$", "")
+                    end
+                end)
+                
+                UserInputService.InputEnded:Connect(function(input)
+                    if input.UserInputType == Enum.UserInputType.MouseButton1 and isDraggingSlider then
+                        isDraggingSlider = false
+                        
+                        -- Apply changes
+                        ApplyFeature(category, featureName)
+                        
+                        -- Save settings
+                        SaveSettings()
+                    end
+                end)
+                
+            elseif optionType == "boolean" then
+                -- Toggle for boolean values
+                local ToggleButton = Instance.new("Frame")
+                ToggleButton.Name = optionName.."Toggle"
+                ToggleButton.Parent = SettingsContent
+                ToggleButton.BackgroundColor3 = optionValue and ENABLE_COLOR or DISABLE_COLOR
+                ToggleButton.Position = UDim2.new(0, 0, 0, yOffset)
+                ToggleButton.Size = UDim2.new(0, 40, 0, 20)
+                
+                local ToggleButtonCorner = Instance.new("UICorner")
+                ToggleButtonCorner.CornerRadius = UDim.new(1, 0)
+                ToggleButtonCorner.Parent = ToggleButton
+                
+                local ToggleCircle = Instance.new("Frame")
+                ToggleCircle.Name = "Circle"
+                ToggleCircle.Parent = ToggleButton
+                ToggleCircle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+                ToggleCircle.Position = optionValue and UDim2.new(1, -20, 0.5, -8) or UDim2.new(0, 2, 0.5, -8)
+                ToggleCircle.Size = UDim2.new(0, 16, 0, 16)
+                
+                local ToggleCircleCorner = Instance.new("UICorner")
+                ToggleCircleCorner.CornerRadius = UDim.new(1, 0)
+                ToggleCircleCorner.Parent = ToggleCircle
+                
+                -- Toggle functionality
+                ToggleButton.InputBegan:Connect(function(input)
+                    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                        Features[category][featureName][optionName] = not Features[category][featureName][optionName]
+                        
+                        -- Update toggle visuals
+                        ToggleButton.BackgroundColor3 = Features[category][featureName][optionName] and ENABLE_COLOR or DISABLE_COLOR
+                        
+                        -- Animate toggle circle
+                        local targetPosition = Features[category][featureName][optionName] 
+                            and UDim2.new(1, -20, 0.5, -8) 
+                            or UDim2.new(0, 2, 0.5, -8)
+                        
+                        TweenService:Create(ToggleCircle, TweenInfo.new(0.2), {Position = targetPosition}):Play()
+                        
+                        -- Apply feature
+                        ApplyFeature(category, featureName)
+                        
+                        -- Save settings
+                        SaveSettings()
+                    end
+                end)
+                
+            elseif optionType == "table" and optionName:lower():find("color") then
+                -- Color picker for Color3 values
+                local ColorButton = Instance.new("Frame")
+                ColorButton.Name = optionName.."Color"
+                ColorButton.Parent = SettingsContent
+                ColorButton.BackgroundColor3 = optionValue
+                ColorButton.BorderSizePixel = 0
+                ColorButton.Position = UDim2.new(0, 0, 0, yOffset)
+                ColorButton.Size = UDim2.new(0, 40, 0, 20)
+                
+                local ColorCorner = Instance.new("UICorner")
+                ColorCorner.CornerRadius = UDim.new(0, 4)
+                ColorCorner.Parent = ColorButton
+                
+                local ColorLabel = Instance.new("TextLabel")
+                ColorLabel.Name = "RGB"
+                ColorLabel.Parent = SettingsContent
+                ColorLabel.BackgroundTransparency = 1
+                ColorLabel.Position = UDim2.new(0.3, 0, 0, yOffset)
+                ColorLabel.Size = UDim2.new(0.7, 0, 0, 20)
+                ColorLabel.Font = Enum.Font.Code
+                ColorLabel.Text = string.format("RGB(%d, %d, %d)", 
+                    math.floor(optionValue.R * 255 + 0.5),
+                    math.floor(optionValue.G * 255 + 0.5),
+                    math.floor(optionValue.B * 255 + 0.5))
+                ColorLabel.TextColor3 = TEXT_COLOR
+                ColorLabel.TextSize = 12
+                ColorLabel.TextXAlignment = Enum.TextXAlignment.Left
+                
+                -- Open color picker on click
+                ColorButton.InputBegan:Connect(function(input)
+                    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                        -- Create a simple color picker
+                        if UIElements.ColorPicker then
+                            UIElements.ColorPicker:Destroy()
+                        end
+                        
+                        local ColorPicker = Instance.new("Frame")
+                        ColorPicker.Name = "ColorPicker"
+                        ColorPicker.Parent = SettingsFrame
+                        ColorPicker.BackgroundColor3 = BACKGROUND_COLOR
+                        ColorPicker.BorderSizePixel = 0
+                        ColorPicker.Position = UDim2.new(0, ColorButton.AbsolutePosition.X - SettingsFrame.AbsolutePosition.X + 50, 
+                                                       0, ColorButton.AbsolutePosition.Y - SettingsFrame.AbsolutePosition.Y)
+                        ColorPicker.Size = UDim2.new(0, 200, 0, 100)
+                        
+                        local PickerCorner = Instance.new("UICorner")
+                        PickerCorner.CornerRadius = UDim.new(0, 8)
+                        PickerCorner.Parent = ColorPicker
+                        
+                        -- RGB sliders
+                        local components = {"R", "G", "B"}
+                        local currentColor = {
+                            R = optionValue.R * 255,
+                            G = optionValue.G * 255,
+                            B = optionValue.B * 255
+                        }
+                        
+                        for i, component in ipairs(components) do
+                            local SliderFrame = Instance.new("Frame")
+                            SliderFrame.Name = component.."Slider"
+                            SliderFrame.Parent = ColorPicker
+                            SliderFrame.BackgroundColor3 = ACCENT_COLOR
+                            SliderFrame.BorderSizePixel = 0
+                            SliderFrame.Position = UDim2.new(0.1, 0, 0, 10 + (i-1)*30)
+                            SliderFrame.Size = UDim2.new(0.7, 0, 0, 8)
+                            
+                            local SliderCorner = Instance.new("UICorner")
+                            SliderCorner.CornerRadius = UDim.new(1, 0)
+                            SliderCorner.Parent = SliderFrame
+                            
+                            local SliderFill = Instance.new("Frame")
+                            SliderFill.Name = "Fill"
+                            SliderFill.Parent = SliderFrame
+                            SliderFill.BackgroundColor3 = Color3.fromRGB(
+                                component == "R" and 255 or 0,
+                                component == "G" and 255 or 0,
+                                component == "B" and 255 or 0
+                            )
+                            SliderFill.BorderSizePixel = 0
+                            SliderFill.Size = UDim2.new(currentColor[component]/255, 0, 1, 0)
+                            
+                            local SliderFillCorner = Instance.new("UICorner")
+                            SliderFillCorner.CornerRadius = UDim.new(1, 0)
+                            SliderFillCorner.Parent = SliderFill
+                            
+                            local ComponentLabel = Instance.new("TextLabel")
+                            ComponentLabel.Name = component.."Label"
+                            ComponentLabel.Parent = ColorPicker
+                            ComponentLabel.BackgroundTransparency = 1
+                            ComponentLabel.Position = UDim2.new(0, 10, 0, 10 + (i-1)*30 - 4)
+                            ComponentLabel.Size = UDim2.new(0.1, -10, 0, 16)
+                            ComponentLabel.Font = Enum.Font.GothamBold
+                            ComponentLabel.Text = component
+                            ComponentLabel.TextColor3 = TEXT_COLOR
+                            ComponentLabel.TextSize = 12
+                            
+                            local ValueLabel = Instance.new("TextLabel")
+                            ValueLabel.Name = component.."Value"
+                            ValueLabel.Parent = ColorPicker
+                            ValueLabel.BackgroundTransparency = 1
+                            ValueLabel.Position = UDim2.new(0.8, 0, 0, 10 + (i-1)*30 - 4)
+                            ValueLabel.Size = UDim2.new(0.2, 0, 0, 16)
+                            ValueLabel.Font = Enum.Font.Code
+                            ValueLabel.Text = tostring(math.floor(currentColor[component]))
+                            ValueLabel.TextColor3 = TEXT_COLOR
+                            ValueLabel.TextSize = 12
+                            
+                            -- Slider functionality
+                            SliderFrame.InputBegan:Connect(function(input)
+                                if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                                    local absPos = SliderFrame.AbsolutePosition
+                                    local absSize = SliderFrame.AbsoluteSize
+                                    local relativePos = (input.Position.X - absPos.X) / absSize.X
+                                    relativePos = math.clamp(relativePos, 0, 1)
+                                    
+                                    -- Update slider
+                                    SliderFill.Size = UDim2.new(relativePos, 0, 1, 0)
+                                    
+                                    -- Update color value
+                                    currentColor[component] = math.floor(relativePos * 255)
+                                    ValueLabel.Text = tostring(currentColor[component])
+                                    
+                                    -- Update the color preview
+                                    local newColor = Color3.fromRGB(
+                                        currentColor.R,
+                                        currentColor.G,
+                                        currentColor.B
+                                    )
+                                    ColorButton.BackgroundColor3 = newColor
+                                    Features[category][featureName][optionName] = newColor
+                                    ColorLabel.Text = string.format("RGB(%d, %d, %d)", 
+                                        currentColor.R, currentColor.G, currentColor.B)
+                                    
+                                    -- Apply feature
+                                    ApplyFeature(category, featureName)
+                                end
+                            end)
+                            
+                            SliderFrame.InputChanged:Connect(function(input)
+                                if input.UserInputType == Enum.UserInputType.MouseMovement and input:IsA("InputObject") and input.UserInputState == Enum.UserInputState.Change then
+                                    local absPos = SliderFrame.AbsolutePosition
+                                    local absSize = SliderFrame.AbsoluteSize
+                                    local relativePos = (input.Position.X - absPos.X) / absSize.X
+                                    relativePos = math.clamp(relativePos, 0, 1)
+                                    
+                                    -- Update slider
+                                    SliderFill.Size = UDim2.new(relativePos, 0, 1, 0)
+                                    
+                                    -- Update color value
+                                    currentColor[component] = math.floor(relativePos * 255)
+                                    ValueLabel.Text = tostring(currentColor[component])
+                                    
+                                    -- Update the color preview
+                                    local newColor = Color3.fromRGB(
+                                        currentColor.R,
+                                        currentColor.G,
+                                        currentColor.B
+                                    )
+                                    ColorButton.BackgroundColor3 = newColor
+                                    Features[category][featureName][optionName] = newColor
+                                    ColorLabel.Text = string.format("RGB(%d, %d, %d)", 
+                                        currentColor.R, currentColor.G, currentColor.B)
+                                end
+                            end)
+                        end
+                        
+                        -- Apply button
+                        local ApplyButton = Instance.new("TextButton")
+                        ApplyButton.Name = "ApplyButton"
+                        ApplyButton.Parent = ColorPicker
+                        ApplyButton.BackgroundColor3 = HIGHLIGHT_COLOR
+                        ApplyButton.BorderSizePixel = 0
+                        ApplyButton.Position = UDim2.new(0.5, -40, 0.8, 0)
+                        ApplyButton.Size = UDim2.new(0, 80, 0, 24)
+                        ApplyButton.Font = Enum.Font.GothamBold
+                        ApplyButton.Text = "Apply"
+                        ApplyButton.TextColor3 = TEXT_COLOR
+                        ApplyButton.TextSize = 14
+                        
+                        local ApplyCorner = Instance.new("UICorner")
+                        ApplyCorner.CornerRadius = UDim.new(0, 4)
+                        ApplyCorner.Parent = ApplyButton
+                        
+                        ApplyButton.MouseButton1Click:Connect(function()
+                            ApplyFeature(category, featureName)
+                            SaveSettings()
+                            ColorPicker:Destroy()
+                        end)
+                        
+                        UIElements.ColorPicker = ColorPicker
+                    end
+                end)
+            elseif optionType == "string" then
+                -- Text input for string values
+                local TextBox = Instance.new("TextBox")
+                TextBox.Name = optionName.."Input"
+                TextBox.Parent = SettingsContent
+                TextBox.BackgroundColor3 = ACCENT_COLOR
+                TextBox.BorderSizePixel = 0
+                TextBox.Position = UDim2.new(0, 0, 0, yOffset)
+                TextBox.Size = UDim2.new(1, 0, 0, 24)
+                TextBox.Font = Enum.Font.Gotham
+                TextBox.PlaceholderText = "Enter "..optionName.."..."
+                TextBox.Text = optionValue
+                TextBox.TextColor3 = TEXT_COLOR
+                TextBox.TextSize = 14
+                TextBox.ClearTextOnFocus = false
+                
+                local TextBoxCorner = Instance.new("UICorner")
+                TextBoxCorner.CornerRadius = UDim.new(0, 4)
+                TextBoxCorner.Parent = TextBox
+                
+                -- Update value on focus lost
+                TextBox.FocusLost:Connect(function(enterPressed)
+                    Features[category][featureName][optionName] = TextBox.Text
+                    ApplyFeature(category, featureName)
+                    SaveSettings()
+                end)
+            end
+            
+            yOffset = yOffset + 40
+        end
+    end
+    
+    -- Update canvas size
+    SettingsContent.CanvasSize = UDim2.new(0, 0, 0, yOffset)
+    
+    -- Close button functionality
+    CloseSettingsButton.MouseButton1Click:Connect(function()
+        SettingsFrame:Destroy()
+        UIElements.SettingsFrame = nil
+    end)
+    
+    -- Make settings draggable
+    local isSettingsDragging = false
+    local settingsDragStart = nil
+    local settingsStartPos = nil
+    
+    SettingsTitle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            isSettingsDragging = true
+            settingsDragStart = input.Position
+            settingsStartPos = SettingsFrame.Position
+            
+            local connection
+            connection = input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    isSettingsDragging = false
+                    connection:Disconnect()
+                end
+            end)
+        end
+    end)
+    
+    UserInputService.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement and isSettingsDragging then
+            local delta = input.Position - settingsDragStart
+            SettingsFrame.Position = UDim2.new(
+                settingsStartPos.X.Scale, 
+                settingsStartPos.X.Offset + delta.X,
+                settingsStartPos.Y.Scale,
+                settingsStartPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+    
+    UIElements.SettingsFrame = SettingsFrame
+end
+
+-- Save and Load Settings
+function SaveSettings()
+    if not Config.SaveEnabled then return end
+    
+    local settingsData = {
+        Features = Features,
+        SavedPosition = SavedPos and {SavedPos.X.Offset, SavedPos.Y.Offset} or nil
+    }
+    
+    local success, result = pcall(function()
+        return HttpService:JSONEncode(settingsData)
+    end)
+    
+    if success then
+        writefile(Config.SaveFileName, result)
+    else
+        warn("Failed to save settings: " .. tostring(result))
+    end
+end
+
+function LoadSettings()
+    if not Config.SaveEnabled then return end
+    
+    if isfile(Config.SaveFileName) then
+        local success, result = pcall(function()
+            return HttpService:JSONDecode(readfile(Config.SaveFileName))
+        end)
+        
+        if success and result then
+            -- Load features
+            if result.Features then
+                for category, categoryFeatures in pairs(result.Features) do
+                    if Features[category] then
+                        for featureName, featureData in pairs(categoryFeatures) do
+                            if Features[category][featureName] then
+                                for option, value in pairs(featureData) do
+                                    Features[category][featureName][option] = value
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+            
+            -- Load position
+            if result.SavedPosition then
+                SavedPos = UDim2.new(0.5, result.SavedPosition[1], 0.5, result.SavedPosition[2])
+            end
+            
+            -- Apply enabled features
+            for category, categoryFeatures in pairs(Features) do
+                for featureName, featureData in pairs(categoryFeatures) do
+                    if featureData.Enabled then
+                        ApplyFeature(category, featureName)
+                    end
+                end
+            end
+            
+            return true
+        else
+            warn("Failed to load settings: " .. tostring(result))
+        end
+    end
+    
+    return false
+end
+
+-- Apply Features
+function ApplyFeature(category, featureName)
+    local feature = Features[category][featureName]
+    
+    -- Save original properties if not already saved
+    if feature.Enabled and not OriginalProperties[featureName] then
+        OriginalProperties[featureName] = {}
+    end
+    
+    -- Apply feature based on category and name
+    if category == "Combat" then
+        if featureName == "KillAura" then
+            if feature.Enabled then
+                if not Connections[featureName] then
+                    Connections[featureName] = RunService.Heartbeat:Connect(function()
+                        -- Kill aura implementation
+                        local character = LocalPlayer.Character
+                        if not character or not character:FindFirstChild("HumanoidRootPart") then return end
+                        
+                        local hrp = character.HumanoidRootPart
+                        
+                        -- Find targets
+                        for _, player in pairs(Players:GetPlayers()) do
+                            if player ~= LocalPlayer and feature.TargetPlayers then
+                                local targetCharacter = player.Character
+                                if targetCharacter and targetCharacter:FindFirstChild("HumanoidRootPart") and targetCharacter:FindFirstChild("Humanoid") then
+                                    local targetHrp = targetCharacter.HumanoidRootPart
+                                    local distance = (hrp.Position - targetHrp.Position).Magnitude
+                                    
+                                    if distance <= feature.Range then
+                                        -- Attempt to damage the target
+                                        local args = {
+                                            [1] = targetCharacter,
+                                            [2] = targetCharacter.Humanoid
+                                        }
+                                        
+                                        -- Try common remote events for damaging
+                                        for _, v in ipairs({"DamageEvent", "DamageFunction", "HitEvent", "Attack", "Damage"}) do
+                                            local remoteEvent = ReplicatedStorage:FindFirstChild(v, true)
+                                            if remoteEvent then
+                                                if remoteEvent:IsA("RemoteEvent") then
+                                                    remoteEvent:FireServer(unpack(args))
+                                                elseif remoteEvent:IsA("RemoteFunction") then
+                                                    remoteEvent:InvokeServer(unpack(args))
+                                                end
+                                            end
+                                        end
+                                        
+                                        -- Visualize if enabled
+                                        if feature.Visualize then
+                                            local beam = Instance.new("Part")
+                                            beam.Anchored = true
+                                            beam.CanCollide = false
+                                            beam.Transparency = 0.6
+                                            beam.BrickColor = BrickColor.new("Bright red")
+                                            beam.Material = Enum.Material.Neon
+                                            beam.Size = Vector3.new(0.1, 0.1, distance)
+                                            
+                                            local offset = (targetHrp.Position - hrp.Position).Unit * distance / 2
+                                            beam.CFrame = CFrame.new(hrp.Position + offset, targetHrp.Position)
+                                            beam.Parent = workspace
+                                            
+                                            game:GetService("Debris"):AddItem(beam, 0.1)
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                        
+                        -- Target NPCs if enabled
+                        if feature.TargetNPCs then
+                            for _, model in pairs(workspace:GetDescendants()) do
+                                if model:IsA("Model") and not Players:GetPlayerFromCharacter(model) and model:FindFirstChild("Humanoid") and model:FindFirstChild("HumanoidRootPart") then
+                                    local targetHrp = model.HumanoidRootPart
+                                    local distance = (hrp.Position - targetHrp.Position).Magnitude
+                                    
+                                    if distance <= feature.Range then
+                                        -- Attempt to damage the NPC
+                                        local args = {
+                                            [1] = model,
+                                            [2] = model.Humanoid
+                                        }
+                                        
+                                        -- Try common remote events for damaging
+                                        for _, v in ipairs({"DamageEvent", "DamageFunction", "HitEvent", "Attack", "Damage"}) do
+                                            local remoteEvent = ReplicatedStorage:FindFirstChild(v, true)
+                                            if remoteEvent then
+                                                if remoteEvent:IsA("RemoteEvent") then
+                                                    remoteEvent:FireServer(unpack(args))
+                                                elseif remoteEvent:IsA("RemoteFunction") then
+                                                    remoteEvent:InvokeServer(unpack(args))
+                                                end
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end)
+                end
+            else
+                if Connections[featureName] then
+                    Connections[featureName]:Disconnect()
+                    Connections[featureName] = nil
+                end
+            end
+        elseif featureName == "HitboxExpander" then
+            -- Hitbox expander implementation
+            if feature.Enabled then
+                -- Clear existing hitboxes
+                for _, hitbox in pairs(ActiveHitboxes) do
+                    if hitbox and hitbox.Parent then
+                        hitbox:Destroy()
+                    end
+                end
+                ActiveHitboxes = {}
+                
+                -- Create connection to update hitboxes
+                if not Connections[featureName] then
+                    Connections[featureName] = RunService.Heartbeat:Connect(function()
+                        -- Expand hitboxes for players
+                        if feature.TargetPlayers then
+                            for _, player in pairs(Players:GetPlayers()) do
+                                if player ~= LocalPlayer then
+                                    local character = player.Character
+                                    if character and character:FindFirstChild("HumanoidRootPart") then
+                                        local hrp = character.HumanoidRootPart
+                                        
+                                        -- Create or update hitbox
+                                        if not ActiveHitboxes[player.Name] or not ActiveHitboxes[player.Name].Parent then
+                                            local hitbox = Instance.new("Part")
+                                            hitbox.Name = "Hitbox_" .. player.Name
+                                            hitbox.Anchored = true
+                                            hitbox.CanCollide = false
+                                            hitbox.Transparency = 0.8
+                                            hitbox.Material = Enum.Material.ForceField
+                                            hitbox.Size = Vector3.new(feature.Size, feature.Size, feature.Size)
+                                            hitbox.Color = Color3.fromRGB(255, 0, 0)
+                                            hitbox.Parent = workspace
+                                            
+                                            ActiveHitboxes[player.Name] = hitbox
+                                        end
+                                        
+                                        -- Update position
+                                        ActiveHitboxes[player.Name].CFrame = hrp.CFrame
+                                        ActiveHitboxes[player.Name].Size = Vector3.new(feature.Size, feature.Size, feature.Size)
+                                    end
+                                end
+                            end
+                        end
+                        
+                        -- Expand hitboxes for NPCs
+                        if feature.TargetNPCs then
+                            for _, model in pairs(workspace:GetDescendants()) do
+                                if model:IsA("Model") and not Players:GetPlayerFromCharacter(model) and model:FindFirstChild("Humanoid") and model:FindFirstChild("HumanoidRootPart") then
+                                    local hrp = model.HumanoidRootPart
+                                    local id = "NPC_" .. tostring(model:GetFullName())
+                                    
+                                    -- Create or update hitbox
+                                    if not ActiveHitboxes[id] or not ActiveHitboxes[id].Parent then
+                                        local hitbox = Instance.new("Part")
+                                        hitbox.Name = "Hitbox_NPC"
+                                        hitbox.Anchored = true
+                                        hitbox.CanCollide = false
+                                        hitbox.Transparency = 0.8
+                                        hitbox.Material = Enum.Material.ForceField
+                                        hitbox.Size = Vector3.new(feature.Size, feature.Size, feature.Size)
+                                        hitbox.Color = Color3.fromRGB(255, 165, 0)
+                                        hitbox.Parent = workspace
+                                        
+                                        ActiveHitboxes[id] = hitbox
+                                    end
+                                    
+                                    -- Update position
+                                    ActiveHitboxes[id].CFrame = hrp.CFrame
+                                    ActiveHitboxes[id].Size = Vector3.new(feature.Size, feature.Size, feature.Size)
+                                end
+                            end
+                        end
+                    end)
+                end
+            else
+                -- Clean up hitboxes
+                for _, hitbox in pairs(ActiveHitboxes) do
+                    if hitbox and hitbox.Parent then
+                        hitbox:Destroy()
+                    end
+                end
+                ActiveHitboxes = {}
+                
+                if Connections[featureName] then
+                    Connections[featureName]:Disconnect()
+                    Connections[featureName] = nil
+                end
+            end
+        end
+        -- Implement other combat features...
+        
+    elseif category == "Movement" then
+        if featureName == "SpeedHack" then
+            local character = LocalPlayer.Character
+            if character and character:FindFirstChild("Humanoid") then
+                local humanoid = character:FindFirstChild("Humanoid")
+                
+                if feature.Enabled then
+                    -- Save original walkspeed
+                    if not OriginalProperties[featureName].WalkSpeed then
+                        OriginalProperties[featureName].WalkSpeed = humanoid.WalkSpeed
+                    end
+                    
+                    -- Apply speed hack
+                    humanoid.WalkSpeed = feature.Speed
+                else
+                    -- Restore original walkspeed
+                    if OriginalProperties[featureName] and OriginalProperties[featureName].WalkSpeed then
+                        humanoid.WalkSpeed = OriginalProperties[featureName].WalkSpeed
+                    else
+                        humanoid.WalkSpeed = DEFAULT_WALKSPEED
+                    end
+                end
+            end
+        elseif featureName == "FlyMode" then
+            if feature.Enabled then
+                if not Connections[featureName] then
+                    -- Create fly part if it doesn't exist
+                    local character = LocalPlayer.Character
+                    if character and character:FindFirstChild("HumanoidRootPart") then
+ local hrp = character.HumanoidRootPart
+                        
+                        local flyPart = Instance.new("Part")
+                        flyPart.Name = "FlyPart"
+                        flyPart.Size = Vector3.new(1, 1, 1)
+                        flyPart.Transparency = 1
+                        flyPart.CanCollide = false
+                        flyPart.Anchored = true
+                        flyPart.Parent = character
+                        
+                        -- Set up flying controls
+                        local flyConnection = RunService.Heartbeat:Connect(function()
+                            if not character:FindFirstChild("HumanoidRootPart") then return end
+                            
+                            local moveDirection = Vector3.new(0, 0, 0)
+                            
+                            if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+                                moveDirection = moveDirection + (workspace.CurrentCamera.CFrame.LookVector * feature.Speed)
+                            end
+                            if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+                                moveDirection = moveDirection - (workspace.CurrentCamera.CFrame.LookVector * feature.Speed)
+                            end
+                            if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+                                moveDirection = moveDirection - (workspace.CurrentCamera.CFrame.RightVector * feature.Speed)
+                            end
+                            if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+                                moveDirection = moveDirection + (workspace.CurrentCamera.CFrame.RightVector * feature.Speed)
+                            end
+                            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+                                moveDirection = moveDirection + Vector3.new(0, feature.Speed, 0)
+                            end
+                            if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
+                                moveDirection = moveDirection - Vector3.new(0, feature.Speed, 0)
+                            end
+                            
+                            flyPart.CFrame = CFrame.new(hrp.Position + (moveDirection * 0.01))
+                            hrp.CFrame = CFrame.new(flyPart.Position)
+                            
+                            if feature.NoClip then
+                                for _, part in pairs(character:GetDescendants()) do
+                                    if part:IsA("BasePart") then
+                                        part.CanCollide = false
+                                    end
+                                end
+                            end
+                        end)
+                        
+                        Connections[featureName] = flyConnection
+                    end
+                end
+            else
+                -- Clean up fly mode
+                if Connections[featureName] then
+                    Connections[featureName]:Disconnect()
+                    Connections[featureName] = nil
+                end
+                
+                local character = LocalPlayer.Character
+                if character then
+                    -- Remove fly part
+                    local flyPart = character:FindFirstChild("FlyPart")
+                    if flyPart then
+                        flyPart:Destroy()
+                    end
+                    
+                    -- Re-enable collisions
+                    for _, part in pairs(character:GetDescendants()) do
+                        if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+                            part.CanCollide = true
+                        end
+                    end
+                end
+            end
+        elseif featureName == "Noclip" then
+            if feature.Enabled then
+                if not Connections[featureName] then
+                    Connections[featureName] = RunService.Stepped:Connect(function()
+                        local character = LocalPlayer.Character
+                        if character then
+                            for _, part in pairs(character:GetDescendants()) do
+                                if part:IsA("BasePart") then
+                                    part.CanCollide = false
+                                end
+                            end
+                        end
+                    end)
+                end
+            else
+                if Connections[featureName] then
+                    Connections[featureName]:Disconnect()
+                    Connections[featureName] = nil
+                    
+                    -- Re-enable collisions
+                    local character = LocalPlayer.Character
+                    if character then
+                        for _, part in pairs(character:GetDescendants()) do
+                            if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+                                part.CanCollide = true
+                            end
+                        end
+                    end
+                end
+            end
+        elseif featureName == "InfiniteJump" then
+            if feature.Enabled then
+                if not Connections[featureName] then
+                    Connections[featureName] = UserInputService.JumpRequest:Connect(function()
+                        local character = LocalPlayer.Character
+                        if character and character:FindFirstChild("Humanoid") then
+                            character:FindFirstChildOfClass("Humanoid"):ChangeState(Enum.HumanoidStateType.Jumping)
+                        end
+                    end)
+                end
+            else
+                if Connections[featureName] then
+                    Connections[featureName]:Disconnect()
+                    Connections[featureName] = nil
+                end
+            end
+        end
+        -- Implement other movement features...
+        
+    elseif category == "Visuals" then
+        if featureName == "ESP" then
+            if feature.Enabled then
+                if not ESP.Connections then
+                    ESP.Connections = {}
+                    ESP.Boxes = {}
+                    ESP.Labels = {}
+                    ESP.Tracers = {}
+                    
+                    -- Create ESP rendering connection
+                    ESP.Connections.Render = RunService.RenderStepped:Connect(function()
+                        for player, elements in pairs(ESP.Boxes) do
+                            if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") then
+                                local hrp = player.Character.HumanoidRootPart
+                                local humanoid = player.Character.Humanoid
+                                
+                                -- Calculate 3D position for 2D rendering
+                                local headPosition = hrp.Position + Vector3.new(0, 3, 0)
+                                local footPosition = hrp.Position - Vector3.new(0, 3, 0)
+                                
+                                local headVector, headVisible = workspace.CurrentCamera:WorldToViewportPoint(headPosition)
+                                local footVector, footVisible = workspace.CurrentCamera:WorldToViewportPoint(footPosition)
+                                
+                                if headVisible or footVisible then
+                                    -- Box ESP
+                                    if feature.Boxes and elements.Box then
+                                        local boxHeight = math.abs(footVector.Y - headVector.Y)
+                                        local boxWidth = boxHeight / 2
+                                        
+                                        elements.Box.Visible = true
+                                        elements.Box.Size = Vector2.new(boxWidth, boxHeight)
+                                        elements.Box.Position = Vector2.new(headVector.X - boxWidth / 2, headVector.Y)
+                                        elements.Box.Color = feature.BoxColor
+                                    end
+                                    
+                                    -- Distance ESP
+                                    if feature.Distance and elements.Label then
+                                        local distance = math.floor((hrp.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude)
+                                        elements.Label.Visible = true
+                                        elements.Label.Position = Vector2.new(footVector.X, footVector.Y + 5)
+                                        elements.Label.Text = player.Name .. " [" .. distance .. "m]"
+                                    end
+                                    
+                                    -- Tracer ESP
+                                    if feature.Tracers and elements.Tracer then
+                                        elements.Tracer.Visible = true
+                                        elements.Tracer.From = Vector2.new(workspace.CurrentCamera.ViewportSize.X / 2, workspace.CurrentCamera.ViewportSize.Y)
+                                        elements.Tracer.To = Vector2.new(footVector.X, footVector.Y)
+                                        elements.Tracer.Color = feature.BoxColor
+                                    end
+                                else
+                                    -- Hide elements if not visible
+                                    if elements.Box then elements.Box.Visible = false end
+                                    if elements.Label then elements.Label.Visible = false end
+                                    if elements.Tracer then elements.Tracer.Visible = false end
+                                end
+                            else
+                                -- Hide elements if character not found
+                                if elements.Box then elements.Box.Visible = false end
+                                if elements.Label then elements.Label.Visible = false end
+                                if elements.Tracer then elements.Tracer.Visible = false end
+                            end
+                        end
+                    end)
+                    
+                    -- Create ESP elements for all players
+                    for _, player in pairs(Players:GetPlayers()) do
+                        if player ~= LocalPlayer then
+                            -- Create Drawing objects for ESP
+                            local box = Drawing.new("Square")
+                            box.Thickness = 1
+                            box.Transparency = 1
+                            box.Filled = false
+                            box.Visible = false
+                            box.Color = feature.BoxColor
+                            
+                            local label = Drawing.new("Text")
+                            label.Size = 16
+                            label.Center = true
+                            label.Outline = true
+                            label.Visible = false
+                            label.Color = Color3.new(1, 1, 1)
+                            
+                            local tracer = Drawing.new("Line")
+                            tracer.Thickness = 1
+                            tracer.Transparency = 1
+                            tracer.Visible = false
+                            tracer.Color = feature.BoxColor
+                            
+                            ESP.Boxes[player] = {
+                                Box = box,
+                                Label = label,
+                                Tracer = tracer
+                            }
+                        end
+                    end
+                    
+                    -- Handle player joining
+                    ESP.Connections.PlayerAdded = Players.PlayerAdded:Connect(function(player)
+                        -- Create ESP elements for new player
+                        local box = Drawing.new("Square")
+                        box.Thickness = 1
+                        box.Transparency = 1
+                        box.Filled = false
+                        box.Visible = false
+                        box.Color = feature.BoxColor
+                        
+                        local label = Drawing.new("Text")
+                        label.Size = 16
+                        label.Center = true
+                        label.Outline = true
+                        label.Visible = false
+                        label.Color = Color3.new(1, 1, 1)
+                        
+                        local tracer = Drawing.new("Line")
+                        tracer.Thickness = 1
+                        tracer.Transparency = 1
+                        tracer.Visible = false
+                        tracer.Color = feature.BoxColor
+                        
+                        ESP.Boxes[player] = {
+                            Box = box,
+                            Label = label,
+                            Tracer = tracer
+                        }
+                    end)
+                    
+                    -- Handle player leaving
+                    ESP.Connections.PlayerRemoving = Players.PlayerRemoving:Connect(function(player)
+                        -- Clean up ESP elements
+                        if ESP.Boxes[player] then
+                            if ESP.Boxes[player].Box then ESP.Boxes[player].Box:Remove() end
+                            if ESP.Boxes[player].Label then ESP.Boxes[player].Label:Remove() end
+                            if ESP.Boxes[player].Tracer then ESP.Boxes[player].Tracer:Remove() end
+                            ESP.Boxes[player] = nil
+                        end
+                    end)
+                end
+            else
+                -- Clean up ESP
+                if ESP.Connections then
+                    for _, connection in pairs(ESP.Connections) do
+                        if connection then connection:Disconnect() end
+                    end
+                    ESP.Connections = nil
+                    
+                    -- Remove all drawing objects
+                    for _, elements in pairs(ESP.Boxes) do
+                        if elements.Box then elements.Box:Remove() end
+                        if elements.Label then elements.Label:Remove() end
+                        if elements.Tracer then elements.Tracer:Remove() end
+                    end
+                    ESP.Boxes = {}
+                end
+            end
+        elseif featureName == "Fullbright" then
+            if feature.Enabled then
+                -- Save original lighting properties
+                if not OriginalProperties[featureName] then
+                    OriginalProperties[featureName] = {
+                        Brightness = Lighting.Brightness,
+                        ClockTime = Lighting.ClockTime,
+                        FogEnd = Lighting.FogEnd,
+                        GlobalShadows = Lighting.GlobalShadows,
+                        Ambient = Lighting.Ambient
+                    }
+                end
+                
+                -- Apply fullbright
+                Lighting.Brightness = feature.Brightness
+                Lighting.ClockTime = 12
+                Lighting.FogEnd = 100000
+                Lighting.GlobalShadows = false
+                Lighting.Ambient = feature.Ambient
+            else
+                -- Restore original lighting
+                if OriginalProperties[featureName] then
+                    Lighting.Brightness = OriginalProperties[featureName].Brightness
+                    Lighting.ClockTime = OriginalProperties[featureName].ClockTime
+                    Lighting.FogEnd = OriginalProperties[featureName].FogEnd
+                    Lighting.GlobalShadows = OriginalProperties[featureName].GlobalShadows
+                    Lighting.Ambient = OriginalProperties[featureName].Ambient
+                end
+            end
+        elseif featureName == "FOVChanger" then
+            if feature.Enabled then
+                -- Save original camera FOV
+                if not OriginalProperties[featureName] then
+                    OriginalProperties[featureName] = {
+                        FieldOfView = workspace.CurrentCamera.FieldOfView
+                    }
+                end
+                
+                -- Apply FOV change
+                workspace.CurrentCamera.FieldOfView = feature.FOV
+            else
+                -- Restore original FOV
+                if OriginalProperties[featureName] then
+                    workspace.CurrentCamera.FieldOfView = OriginalProperties[featureName].FieldOfView
+                else
+                    workspace.CurrentCamera.FieldOfView = DEFAULT_FOV
+                end
+            end
+        end
+        -- Implement other visual features...
+        
+    elseif category == "Utility" then
+        if featureName == "AntiAFK" then
+            if feature.Enabled then
+                if not Connections[featureName] then
+                    Connections[featureName] = RunService.Heartbeat:Connect(function()
+                        -- Simulate random input to prevent AFK kick
+                        local timeElapsed = tick()
+                        
+                        if not Connections.LastAntiAFK or timeElapsed - Connections.LastAntiAFK >= feature.Interval then
+                            Connections.LastAntiAFK = timeElapsed
+                            VirtualUser:CaptureController()
+                            VirtualUser:ClickButton2(Vector2.new())
+                        end
+                    end)
+                end
+            else
+                if Connections[featureName] then
+                    Connections[featureName]:Disconnect()
+                    Connections[featureName] = nil
+                    Connections.LastAntiAFK = nil
+                end
+            end
+        elseif featureName == "ChatSpy" then
+            if feature.Enabled then
+                -- Implement chat spy
+                local chatConnection = function(message, recipient)
+                    -- Handle private chats
+                    if feature.IncludeWhispers and recipient then
+                        local formattedMessage = "[CHAT SPY] [" .. tostring(message.FromSpeaker) .. " > " .. tostring(recipient) .. "]: " .. tostring(message.Message)
+                        
+                        -- Output to console if enabled
+                        if feature.LogToConsole then
+                            print(formattedMessage)
+                        end
+                        
+                        -- Display in the main chat
+                        game:GetService("StarterGui"):SetCore("ChatMakeSystemMessage", {
+                            Text = formattedMessage,
+                            Color = Color3.fromRGB(255, 140, 0),
+                            Font = Enum.Font.SourceSansBold,
+                            TextSize = 18
+                        })
+                    end
+                end
+                
+                -- Hook chat events
+                if not Hooks.ChatSpy then
+                    Hooks.ChatSpy = true
+                    local oldFunctionHook
+                    oldFunctionHook = hookfunction(getrawmetatable(game).__namecall, function(self, ...)
+                        local args = {...}
+                        local method = getnamecallmethod()
+                        
+                        if method == "FireServer" and self.Name == "SayMessageRequest" then
+                            chatConnection({FromSpeaker = LocalPlayer.Name, Message = args[1]}, args[2])
+                        end
+                        
+                        return oldFunctionHook(self, ...)
+                    end)
+                end
+            else
+                -- Unhook chat events
+                if Hooks.ChatSpy then
+                    Hooks.ChatSpy = false
+                    -- Note: This would ideally restore the original function, but for simplicity we'll just disable the flag
+                end
+            end
+        end
+        -- Implement other utility features...
+    end
+end
+
+-- Keybind Handling
+local function SetupKeybinds()
+    -- Toggle UI
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if not gameProcessed and input.KeyCode == Config.KeyBinds.ToggleUI then
+            if UIElements.MainGUI then
+                UIElements.MainGUI.Enabled = not UIElements.MainGUI.Enabled
+            end
+        elseif not gameProcessed and input.KeyCode == Config.KeyBinds.Fly then
+            -- Toggle Fly
+            Features.Movement.FlyMode.Enabled = not Features.Movement.FlyMode.Enabled
+            ApplyFeature("Movement", "FlyMode")
+            
+            -- Update GUI if visible
+            if UIElements.MainGUI and Toggles.MovementFlyMode then
+                Toggles.MovementFlyMode.Button.BackgroundColor3 = Features.Movement.FlyMode.Enabled and ENABLE_COLOR or DISABLE_COLOR
+                local targetPosition = Features.Movement.FlyMode.Enabled 
+                    and UDim2.new(1, -20, 0.5, -8) 
+                    or UDim2.new(0, 2, 0.5, -8)
+                
+                TweenService:Create(Toggles.MovementFlyMode.Circle, TweenInfo.new(0.2), {Position = targetPosition}):Play()
+            end
+            SaveSettings()
+        elseif not gameProcessed and input.KeyCode == Config.KeyBinds.Speed then
+            -- Toggle Speed
+            Features.Movement.SpeedHack.Enabled = not Features.Movement.SpeedHack.Enabled
+            ApplyFeature("Movement", "SpeedHack")
+            
+            -- Update GUI if visible
+            if UIElements.MainGUI and Toggles.MovementSpeedHack then
+                Toggles.MovementSpeedHack.Button.BackgroundColor3 = Features.Movement.SpeedHack.Enabled and ENABLE_COLOR or DISABLE_COLOR
+                local targetPosition = Features.Movement.SpeedHack.Enabled 
+                    and UDim2.new(1, -20, 0.5, -8) 
+                    or UDim2.new(0, 2, 0.5, -8)
+                
+                TweenService:Create(Toggles.MovementSpeedHack.Circle, TweenInfo.new(0.2), {Position = targetPosition}):Play()
+            end
+            SaveSettings()
+        elseif not gameProcessed and input.KeyCode == Config.KeyBinds.Noclip then
+            -- Toggle Noclip
+            Features.Movement.Noclip.Enabled = not Features.Movement.Noclip.Enabled
+            ApplyFeature("Movement", "Noclip")
+            
+            -- Update GUI if visible
+            if UIElements.MainGUI and Toggles.MovementNoclip then
+                Toggles.MovementNoclip.Button.BackgroundColor3 = Features.Movement.Noclip.Enabled and ENABLE_COLOR or DISABLE_COLOR
+                local targetPosition = Features.Movement.Noclip.Enabled 
+                    and UDim2.new(1, -20, 0.5, -8) 
+                    or UDim2.new(0, 2, 0.5, -8)
+                
+                TweenService:Create(Toggles.MovementNoclip.Circle, TweenInfo.new(0.2), {Position = targetPosition}):Play()
+            end
+            SaveSettings()
+        end
+    end)
+end
+
+-- Main Initialization
+local function Initialize()
+    -- Load settings
+    LoadSettings()
+    
+    -- Create GUI
+    CreatePhantomRivalGUI()
+    
+    -- Setup keybinds
+    SetupKeybinds()
+    
+    -- Set initial position if saved
+    if SavedPos and UIElements.MainFrame then
+        UIElements.MainFrame.Position = SavedPos
+    end
+    
+    -- Add notification
+    StarterGui:SetCore("SendNotification", {
+        Title = "PhantomRival Hub",
+        Text = "Loaded successfully! Press Right Ctrl to toggle UI",
+        Duration = 5
+    })
+    
+    -- Character added connection for persistent features
+    LocalPlayer.CharacterAdded:Connect(function()
+        wait(1) -- Wait for character to fully load
+        
+        -- Re-apply enabled features that need to be applied on character respawn
+        for category, categoryFeatures in pairs(Features) do
+            for featureName, featureData in pairs(categoryFeatures) do
+                if featureData.Enabled then
+                    ApplyFeature(category, featureName)
+                end
+            end
+        end
+    end)
+    
+    -- Clean up on script end
+    script.Destroying:Connect(function()
+        -- Disconnect all connections
+        for _, connection in pairs(Connections) do
+            if connection then connection:Disconnect() end
+        end
+        
+        -- Clean up ESP
+        if ESP.Connections then
+            for _, connection in pairs(ESP.Connections) do
+                if connection then connection:Disconnect() end
+            end
+            
+            for _, elements in pairs(ESP.Boxes) do
+                if elements.Box then elements.Box:Remove() end
+                if elements.Label then elements.Label:Remove() end
+                if elements.Tracer then elements.Tracer:Remove() end
+            end
+        end
+        
+        -- Remove UI
+        if UIElements.MainGUI then
+            UIElements.MainGUI:Destroy()
+        end
+        
+        -- Restore original properties
+        for featureName, props in pairs(OriginalProperties) do
+            if featureName == "SpeedHack" then
+                local character = LocalPlayer.Character
+                if character and character:FindFirstChild("Humanoid") and props.WalkSpeed then
+                    character.Humanoid.WalkSpeed = props.WalkSpeed
+                end
+            elseif featureName == "Fullbright" then
+                Lighting.Brightness = props.Brightness
+                Lighting.ClockTime = props.ClockTime
+                Lighting.FogEnd = props.FogEnd
+                Lighting.GlobalShadows = props.GlobalShadows
+                Lighting.Ambient = props.Ambient
+            elseif featureName == "FOVChanger" then
+                workspace.CurrentCamera.FieldOfView = props.FieldOfView
+            end
+        end
+    end)
+end
+
+-- Run initialization
+Initialize()
+
+-- Return config for API
+return Config
